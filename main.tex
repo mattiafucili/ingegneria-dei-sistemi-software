@@ -1,0 +1,718 @@
+\documentclass{article}
+\usepackage[utf8]{inputenc}
+\usepackage[italian]{babel} 
+\usepackage[T1]{fontenc}
+\usepackage{listings}
+\usepackage{color}
+\usepackage{fancyhdr}
+\fancyhf{}
+\rhead{Attività Progettuale Ingegneria dei Sistemi Software M}
+\rfoot{Pagina \thepage}
+\usepackage{lastpage}
+\usepackage{multimedia}
+\lstset{basicstyle=\small\ttfamily, language=Java, breakatwhitespace=true, breaklines=true, linewidth=12cm, tabsize=1}
+\setcounter{page}{1}
+\pagestyle{fancy}
+ \ifpdf
+ \usepackage[pdftex]{graphicx}
+ \else
+ \usepackage{graphicx}
+ \fi
+
+\begin{document}
+
+\title{Attività progettuale di Ingegneria del Software} \author{Erika Gardini \and Mattia Fucili}
+\maketitle
+\newpage
+\section{Introduzione}
+Scopo dell'attività progettuale di Ingegneria dei Sistemi Software M è:
+\begin{itemize}
+    \item accedere ai sensori di un dispositivo Android
+    \item trasferire le informazioni dei sensori ad un'applicazione Java sia via USB sia via Bluetooth
+    \item approfondire il concetto di RxJava
+    \item approfondire il concetto di Internet of Things 
+\end{itemize}
+\newpage
+\section{Accedere ai sensori di un dispositivo Android}
+Per accedere ai sensori Android è necessario usare le API di Android. In questo modo è possibile ricevere un'evento quando i sensori cambiano il loro valore. 
+Esistono due modi per accedere ai sensori Android; il primo è attraverso Android Sensor Framework, di più basso livello, ed il secondo è attraverso Android Sensor Support.
+\subsection{Android Sensor Framework}
+Android Sensor Framework è parte del package android.hardware e consente di accedere ai sensori Android, sia fisici che virtuali. 
+In particolare tramite la classe SensorManager è possibile ottenere un "gestore dei sensori":
+\begin{lstlisting}
+private SensorManager mSensorManager;
+mSensorManager = (SensorManager) getSystemService(Context.SENSOR_SERVICE);
+\end{lstlisting}
+Attraverso quest'ultimo è possibile ottenere la lista di tutti i sensori:
+\begin{lstlisting}
+List<Sensor> deviceSensors = mSensorManager.getSensorList(Sensor.TYPE_ALL);
+\end{lstlisting}
+Inoltre è possibile determinare se esiste uno specifico sensore sul dispositivo Android. Di seguito viene riportato un esempio con l'accelerometro:
+\begin{lstlisting}
+mSensorManager = (SensorManager) getSystemService(Context.SENSOR_SERVICE); 
+if (mSensorManager.getDefaultSensor(
+    Sensor.TYPE_ACCELEROMETER) != null) {
+        Success! There is an accelerometer.
+} else{
+        Failure! No accelerometer.
+}
+\end{lstlisting}
+Attraverso l'interfaccia SensorEventListener, invece, è possibile essere reattivi ai cambiamenti dei sensori.
+In particolare, implementare l'interfaccia significa implementare i seguenti due metodi:
+\begin{itemize}
+    \item onAccuracyChanged()
+    \item onSensorChanged()
+\end{itemize}
+Entrambi i metodi vengono automaticamente invocati dal sistema quando cambiano rispettivamente l'accuratezza o il valore di un sensore ed hanno come parametro un oggetto SensorEvent che contiene le informazioni sui nuovi dati acquisiti dal sensore.\\
+Qui di seguito viene riportata come esempio un'applicazione Android, in grado di mostrare i valori di giroscopio, ed accelerometro:\\
+\lstinputlisting[language=Java]{codice/SensorsApplication.java}
+Il rispettivo file di layout:
+\lstinputlisting[language=XML]{codice/SensorsAppLayout.xml}
+Qui di seguito viene riportata un'immagine dell'applicazione:
+\begin{center}
+\includegraphics[scale = 0.15]{img/app.jpeg}    
+\end{center}
+\subsection{Android Sensor Support}
+Android Sensor Support è un modo di più alto livello per accedere ai sensori e consente di accedere alle informazioni dei sensori solo quando necessario. Infatti, esiste un listener per ciascun sensore, in ascolto dei cambiamenti, ciascuno dei quali aggiorna il contenuto di una classe accessibile in qualunque momento mediante metodi getters. 
+\subsection{Considerazioni sull'accesso ai sensori}
+Alzare il livello di astrazione comporta un aumento della complessità dell'applicazione. Obiettivo dell'attività progettuale è quello di cattuare informazioni dai sensori in modo tale che queste possano poi essere utilizzate dal robot per migliorare i suoi movimenti. L'applicazione Android non dovrà contenere nessuna logica di business, ma dovrà semplicemente trasferire le informazioni all'applicazione Java principale, che dovrà poi sfruttare le informazioni ricevute per migliorare il comportamento del Robot. \\
+Pertanto non è necessario usare Android Sensor Support per questa attività progettuale, ma sarà sufficiente utilizzare le APIs fornite da Android Sensor Framework.
+\newpage
+\section{Trasferimento delle informazioni dei sensori}
+\subsection{Trasferimento di informazioni via USB}
+\subsubsection{Definizione di USB}
+In elettronica USB (Universal Serial Bus[1]) è un'interfaccia standard industriale di comunicazione seriale sviluppata a metà degli anni novanta per standardizzare in un unico protocollo di comunicazione cavi e connettori da utilizzare per la connessione, la comunicazione e l'alimentazione tra computer e periferiche elettroniche.\\
+La tensione di alimentazione prevista dallo standard di base è 5 volt; ma opzionalmente, i dispositivi che seguono lo standard USB Power Delivery UPD, implementano uno schema di alimentazione flessibile che attraverso un canale di comunicazione dati con l'alimentatore, gli permette di richiedere un certo livello di tensione di alimentazione che può essere 5V, 9V, 15V, o 20V.
+\subsubsection{Protocollo di comunicazione USB}
+L'USB è una rete di connessioni sull'host computer. Queste connessioni si dividono in due gruppi:
+\begin{itemize}
+    \item funzioni
+    \item hubs 
+\end{itemize}
+\begin{figure}[htbp]
+\centering
+\includegraphics[scale = 0.5]{img/fig.png}
+\end{figure}
+\subsubsection{Android USB Host and USB Accessory}
+Un dispositivo Android può fungere sia da Host che da Accessory. \\
+Nella modalità Accessory è l'USB hadware esterna a svolgere il ruolo di Host (es. dosking stations, ...), quindi il dispositivo Android deve seguire il protocollo di comunicazione Accessory. \\  
+Nella modalità Host, invece, è il dispositivo Android a svolgere il ruolo di Host (es. tastiere, mouse, ...), quindi dispositivi esterni connessi al dispositivo Adroid possono interagire con le applicazione e possono correttamente comunicare con il dispositivo Android stesso. \\
+Qui di seguito viene riportata la differenza fra le due modalità:
+\begin{figure}[htbp]
+\centering
+\includegraphics[scale = 0.5]{img/AndroidHostAccessory.png}
+\end{figure}
+\\Quando il dispositivo Android svolge il ruolo di USB Host alimenta il bus di comunicazione, al contrario della modalità USB Accessory.
+\subsubsection{Soluzione Android}
+Poichè non tutti i dipospositivi Android dispongono della funzionalità di USB Host e poichè il Raspberry Pi funziona soltanto in modalità Host, si è scelto di utilizzare il dispositivo Android come USB Accessory. Sarà quindi il Raspberry Pi a svolgere la funzionalità di Host.\\
+Qui di seguito viene riportato il codice dell'applicazione Android che svolge il ruolo di USB Accessory.
+\lstinputlisting[language=Java]{codice/UsbAccessory.java}
+Qui di seguito viene riportato il relativo file manifest:
+\lstinputlisting[language=XML]{codice/UsbAccessoryMan.xml}
+\subsubsection{Soluzione Raspberry Pi}
+Lato Raspberry Pi, invece, esiste una libreria Python (PySerial) che consente di aprire porte seriali e di leggere dati da esse. Di seguito verranno riportati i principali comandi. In particolare, per importare la librearia è necessario inserire il seguente comando:
+\begin{lstlisting}
+import serial
+\end{lstlisting}
+Per aprire una porta è necessario eseguire il seguente comando:
+\begin{lstlisting}
+ser = serial.Serial('/dev/ttyUSB0')
+\end{lstlisting}
+dove /dev/ttyUSB0 è il nome della porta che si vuole "ascoltare".
+\\Per leggere da una porta è necessario eseguire il seguente comando:
+\begin{lstlisting}
+s = ser.read(nBites)
+\end{lstlisting}
+indicando al posto di nBites il massimo numero di bites che si vogliono leggere.\\
+Il programma Python risultante sarà quindi il seguente:
+\begin{lstlisting}
+import serial
+import time
+
+serialData = serial.Serial(
+    port='/dev/ttyACM0',
+    baudrate=9600,
+    parity=serial.PARITY_NONE,
+    stopbits=serial.STOPBITS_ONE,
+    bytesize=serial.EIGHTBITS,
+    timeout=20000000
+    )
+
+while True:
+    print (serialData.portstr)
+    try:
+        line = serialData.read(1024)
+        if len(line) == 0: break
+        print line
+    except IOError:
+	pass
+\end{lstlisting}
+\subsubsection{Problematiche riscontrate}
+Per la realizzazione della comunicazione attraverso USB non esiste alcuna documentazione. \\
+Non esistono esempi di comunicazioni fra Raspberry Pi 3 e qualsiasi dispositivo Android. \\
+Tutti gli esempi di applicazioni Android Usb Accessory riscontrano le stesse problematiche (AccessoryList sempre null).\\
+Inoltre, le librerie disponibili online sono obsolete e l'uso di connessioni USB è fortemente sconsigliato. \\
+Pertanto, si è ritenuto più opportuno trovare una soluzione Bluetooth.
+\subsection{Trasferimento di informazioni via Bluetooth}
+\subsubsection{Bluetooth}
+Bluetooth è uno standard tecnico-industriale di trasmissione dati per reti personali senza fili (WPAN: Wireless Personal Area Network). Fornisce un metodo standard, economico e sicuro per scambiare informazioni tra dispositivi diversi attraverso una frequenza radio sicura a corto raggio.\\
+Bluetooth cerca i dispositivi coperti dal segnale radio entro un raggio di qualche decina di metri mettendoli in comunicazione tra loro. Affinchè due dispositivi riescano a comunicare devono essere provvisti delle specifiche hardware e software richieste dallo standard stesso.
+\subsubsection{Raspberry Pi 3 and Android Bluetooth}
+La nuova versione 3 del Raspberry Pi è dotata del Bluetooth 4.1/Low Energy (LE).\\
+Anche la maggior parte dei nuovi dispositivi Android sono dotati della tecnologia Bluetooth LE.\\
+Il Bluetooth Low Energy (BLE) è un dispositivo a basso consumo di energia e con potenzialità molto più elevate del normale Bluetooth. Questa nuova versione del Bluetooth si basa sul protocollo GATT.
+\subsubsection{GATT protocol}
+L'acronimo GATT, usato per indicare il concetto di Generic Attributes, definisce una struttura dati gerarchica utilizzata dai dispositivi connessi attraverso Bluetooth Low Energy (LE).
+In particolare GATT definiscce un modo per inviare e ricevere messaggi standard attraverso la tecnologia Bluetooth Low Energy (LE).\\\\
+\textbf{Gerarchia GATT}\\
+In cima alla gerarchia si trovano i profili, composti da uno o più servizi.
+Un servizio è composto da caratteristiche o riferimenti ad altri servizi. 
+\\Qui di seguito viene riportato uno schema del protocollo:
+\begin{center}
+\includegraphics[scale = 0.5]{img/GATT.jpg}    
+\end{center}
+Una caratteristica consiste in un valore (rappresentato da un UUID), una lista di proprietà (che indicano le operazioni supportate dalla caratteristica) ed una lista di permessi. 
+Il framework GATT definisce le procedure ed i formati che i servizi e le loro caratteristiche devono avere. \\ \\
+\textbf{I ruoli Client e Server}\\
+GATT definisce i ruoli di Client e Server. In particolare le procedure possono essere suddivise in tre differenti tipologie:
+\begin{itemize}
+    \item discovery procedures
+    \item client-initiated procedures
+    \item server-initiated procedures
+\end{itemize}
+Il Server memorizza i dati trasportati su ATT e accetta richieste, comandi e conferme da parte del Client. Inoltre, invia risposte alle richieste ed invia notifiche in modo asincrono al Client quando particolarei eventi si verificano.\\
+GATT specifica inoltre il formato dei dati contenuti nel Server.
+\subsubsection{Trasferimento di informazioni fra Server e Client GATT}
+\\ \\ \textbf{SERVER GATT}\\
+Ai fini dell'attività progettuale si è scelto di utilizzare il dispositivo Android come Server GATT, in modo tale che esso possa offrire dei servizi utilizzabili dai Client.\\
+In particolare, il Server GATT dovrà mettere a disposizione dei clienti dei servizi che consentano di accedere ai valori dei sensori (un servizio per ciascun sensore).\\
+L'applicazione mostrata nella sezione 2.1 leggeva le informazioni di accelerometro e giroscopio. Pertanto, un primo Server GATT potrebbe mettere a disposizione due servizi:
+\begin{itemize}
+    \item accelerometer
+    \item gyroscope
+\end{itemize}
+ciascuno dei quali avrà un'unica caratteristica:
+\begin{itemize}
+    \item currentValues: valore corrente del sensore.
+\end{itemize}
+\textbf{Costanti}
+\begin{lstlisting}
+    private static final UUID GYROSCOPE_SERVICE =    
+        UUID.fromString(
+            "0000aa52-0000-1000-8000-00805f9b34fb");
+    private static final UUID CHARACTERISTIC_GYROSCOPE_VALUE = 
+        UUID.fromString(
+            "0000aa51-0000-1000-8000-00805f9b34fb");
+    private static final UUID DESCRIPTOR_GYROSCOPE_VALUE = 
+        UUID.fromString(
+            "0000aa53-0000-1000-8000-00805f9b34fb");
+        
+    private static final UUID ACCELEROMETER_SERVICE = 
+        UUID.fromString(
+            "0000aa11-0000-1000-8000-00805f9b34fb");
+    private static final UUID CHARACTERISTIC_ACCELEROMETER_VALUE = 
+        UUID.fromString(
+            "0000aa12-0000-1000-8000-00805f9b34fb");
+    private static final UUID DESCRIPTOR_ACCELEROMETER_VALUE = 
+        UUID.fromString(
+            "0000aa13-0000-1000-8000-00805f9b34fb");
+\end{lstlisting}
+Le costanti sopra indicate sono necessarie per definire in maniera univoca servizi, caratteristiche e descrittori. Poichè non si sta implementando un servizio standard è possibile generare i vari UUID in maniera casuale. \\
+Se un cliente vuole registrarsi ad una caratteristica, quindi vuole essere avvisato quando il suo valore cambia, deve eseguire un'operazione di scrittura sul descrittore per manifestare il suo intento. 
+\\ \\ \textbf{Android Manifest} 
+\begin{lstlisting}
+    <uses-permission android:name=
+        "android.permission.BLUETOOTH"/>
+    <uses-permission android:name=
+        "android.permission.BLUETOOTH_ADMIN"/>
+    <uses-permission android:name=
+        "android.permission.BLUETOOTH_PRIVILEGED"/>
+    <uses-permission android:name=
+        "android.permission.ACCESS_COARSE_LOCATION"/>
+    <uses-permission android:name=
+        "android.permission.ACCESS_FINE_LOCATION"/>
+    <uses-feature android:name=
+        "android.hardware.bluetooth_le"/>
+\end{lstlisting}
+A questo punto si procede inserendo nel Manifest i permessi per iniziare una ricerca e per attivare automaticamente il Bluetooth del dispositivo. \\
+Inoltre si specifica che l'applicazione necessita di un dispositivo Bluetooth LE per funzionare.
+\\ \\ \textbf{Attivazione dei servizi}\\ 
+Affinchè i Client GATT possano vedere i servizi offerti dal server e connettersi ad essi, è necessario che quest'ultimo li renda disponibili.\\
+A tal scopo è necessario eseguire i seguenti comandi:
+\begin{lstlisting}
+mBluetoothManager = (BluetoothManager) getSystemService(BLUETOOTH_SERVICE);
+BluetoothAdapter bluetoothAdapter = mBluetoothManager.getAdapter();
+AdvertiseSettings settings = 
+    new AdvertiseSettings.Builder()
+        .setAdvertiseMode(
+            AdvertiseSettings.ADVERTISE_MODE_BALANCED)
+        .setConnectable(true)
+        .setTimeout(0)
+        .setTxPowerLevel(
+            AdvertiseSettings.ADVERTISE_TX_POWER_MEDIUM)
+        .build();
+
+// Defines which service to advertise.
+AdvertiseData data = new AdvertiseData.Builder()
+        .setIncludeDeviceName(true)
+        .setIncludeTxPowerLevel(false)
+        .addServiceUuid(new ParcelUuid(SERVICE_ID))
+        .build();
+
+// Starts advertising.
+mBluetoothLeAdvertiser = bluetoothAdapter.getBluetoothLeAdvertiser();
+mBluetoothLeAdvertiser.startAdvertising(settings, data, mAdvertiseCallback);
+\end{lstlisting}
+L'operazione di "advertising" è costosa in termini di consumo di energia. Pertanto si consiglia, nel caso in cui il dispositivo Android non sia connesso alla corrente, di aggiungere un timeout o di inserire un bottone per attivare/disattivare l'operazione.\\
+Il metodo startAdvertising necessità di una callback, definita come segue:
+\begin{lstlisting}
+private AdvertiseCallback mAdvertiseCallback = new AdvertiseCallback() {
+    @Override
+    public void onStartSuccess(AdvertiseSettings settingsInEffect) {
+        Log.i(TAG, "LE Advertise Started.");
+    }
+
+    @Override
+    public void onStartFailure(int errorCode) {
+        Log.w(TAG, "LE Advertise Failed: " + errorCode);
+    }
+};
+\end{lstlisting}
+\\ \\ \textbf{Creazione dei servizi}\\
+A questo punto è necessario definire i servizi GATT, che nel nostro caso sono i seguenti:
+\begin{itemize}
+    \item ACCELEROMETER\_SERVICE: conentente una sola caratteristica con il valore del sensore
+    \item GYROSCOPE\_SERVICE: contenente una sola caratteristica con il valore del sensore
+\end{itemize} 
+\newpage
+\begin{lstlisting}
+public static BluetoothGattService createService() {
+        BluetoothGattService service = new BluetoothGattService(ACCELEROMETER_SERVICE, BluetoothGattService.SERVICE_TYPE_PRIMARY);
+
+        BluetoothGattCharacteristic currentValue = new BluetoothGattCharacteristic(
+            CHARACTERISTIC_ACCELEROMETER_VALUE, BluetoothGattCharacteristic.PROPERTY_READ | BluetoothGattCharacteristic.PROPERTY_NOTIFY, BluetoothGattCharacteristic.PERMISSION_READ);
+        BluetoothGattDescriptor configDescriptor = new BluetoothGattDescriptor(
+            DESCRIPTOR_ACCELEROMETER_VALUE, BluetoothGattDescriptor.PERMISSION_READ | BluetoothGattDescriptor.PERMISSION_WRITE);
+
+        currentValue.addDescriptor(configDescriptor);
+        service.addCharacteristic(currentValue);
+
+        return service;
+    }
+\end{lstlisting}
+\begin{lstlisting}
+public static BluetoothGattService createService() {
+        BluetoothGattService service = new BluetoothGattService(GYROSCOPE_SERVICE, BluetoothGattService.SERVICE_TYPE_PRIMARY);
+
+        BluetoothGattCharacteristic currentValue = new BluetoothGattCharacteristic(
+            CHARACTERISTIC_GYROSCOPE_VALUE, BluetoothGattCharacteristic.PROPERTY_READ | BluetoothGattCharacteristic.PROPERTY_NOTIFY, BluetoothGattCharacteristic.PERMISSION_READ);
+        BluetoothGattDescriptor configDescriptor = new BluetoothGattDescriptor(
+            DESCRIPTOR_GYROSCOPE_VALUE, BluetoothGattDescriptor.PERMISSION_READ | BluetoothGattDescriptor.PERMISSION_WRITE);
+
+        currentValue.addDescriptor(configDescriptor);
+        service.addCharacteristic(currentValue);
+
+        return service;
+    }
+\end{lstlisting}
+\\\\ \\ \textbf{Avviare il Server GATT} \\
+A questo punto è necessario attivare il server GATT con i seguenti comandi:
+\begin{lstlisting}
+mGattServer = mBluetoothManager.openGattServer(mContext, mGattServerCallback);
+mGattServer.addService(createService());
+\end{lstlisting}
+Questo metodo necessità di un'istanza di BluetoothGattServerCallback che contiene le callback da implementare quando una caratteristica o un descrittore viene letta/o o scritta/o. \\
+Quando un Client GATT legge il valore dell'accelerometro o del giroscopio dalla caratteristica è necessario che questo venga restituito. A tal scopo è necessario implementare il metodo onCharacteristicReadRequest della classe BluetoothGattServerCallback e restituire il valore richiesto:
+\begin{lstlisting}
+ @Override
+ public void onCharacteristicReadRequest(BluetoothDevice device, int requestId, int offset, BluetoothGattCharacteristic characteristic) {
+    if (characteristic.getUuid().equals(
+        Accelerometer.
+            getCharacteristicAccelerometerValue())) {
+        bluetoothGattServer.sendResponse(device, requestId, BluetoothGatt.GATT_SUCCESS, 0, accListener.getValue().getBytes());
+        Log.d(LOG, "SENDING RESPONSE FOR ACCELEROMETER TO " + device.getName() + " - " + device.getAddress());
+        txtDebug.append("Sending response\n");
+    } else if (characteristic.getUuid().equals(
+            Gyroscope.getCharacteristicGyroscopeValue())) {
+        bluetoothGattServer.sendResponse(device, requestId, BluetoothGatt.GATT_SUCCESS, 0, gyrListener.getValue().getBytes());
+        Log.d(LOG, "SENDING RESPONSE FOR GYROSCOPE TO " + device.getName() + " - " + device.getAddress());
+    } else {
+        Log.d(LOG, "UNKNOWN CHARACTERISTIC UUID");
+        txtDebug.append("Unknown characteristic\n");
+    }
+}
+\end{lstlisting}
+Ogni volta che il valore dei sensori Android cambiano, però, è necessario notificare il cambiamento al Client GATT.\\
+Per prima cosa ciascun Client GATT deve indicare il suo interesse ad essere notificato; a tal scopo deve scrivere sul descrittore. E' quindi necessario implementare il metodo onDescriptorWriteRequest nel quale si aggiunge il cliente che ha effettuato la richiesta alla lista dei clienti da notificare:
+\begin{lstlisting}
+@Override
+public void onDescriptorWriteRequest(BluetoothDevice device, int requestId, BluetoothGattDescriptor descriptor, boolean preparedWrite, boolean responseNeeded, int offset, byte[] value) {
+    if (descriptor.getUuid().equals(
+        Accelerometer.getDescriptorAccelerometerValue())) {
+        if (Arrays.equals(
+            BluetoothGattDescriptor.
+                ENABLE_NOTIFICATION_VALUE, value)) {
+            registeredDevicesAccelerometer.add(device);
+            Log.d(LOG, "NEW CLIENT FOR ACCELEROMETER " + device.getName() + " - " + device.getAddress());
+            txtDebug.append("New client\n");
+        } else {
+            registeredDevicesAccelerometer.remove(device);
+            Log.d(LOG, "BYE CLIENT FOR ACCELEROMETER " + device.getName() + " - " + device.getAddress());
+            txtDebug.append("Bye client\n");
+        }
+        bluetoothGattServer.sendResponse(device, requestId, BluetoothGatt.GATT_SUCCESS, 0, null);
+        Log.d(LOG, "RESPONSE SENT TO CLIENT");
+        txtDebug.append("Response sent SUCC\n");
+    } else if (descriptor.getUuid().equals(
+        Gyroscope.getDescriptorGyroscopeValue())) {
+        if (Arrays.equals(
+            BluetoothGattDescriptor.
+                ENABLE_NOTIFICATION_VALUE, value)) {
+            registeredDevicesGyroscope.add(device);
+            Log.d(LOG, "NEW CLIENT FOR GYROSCOPE " + device.getName() + " - " + device.getAddress());
+        } else {
+            registeredDevicesGyroscope.remove(device);
+            Log.d(LOG, "BYE CLIENT FOR GYROSCOPE " + device.getName() + " - " + device.getAddress());
+        }
+        bluetoothGattServer.sendResponse(device, requestId, BluetoothGatt.GATT_SUCCESS, 0, null);
+        Log.d(LOG, "RESPONSE SENT TO CLIENT");
+    } else {
+        Log.d(LOG, "UNKNOWN DESCRIPTOR UUID");
+        txtDebug.append("Unknown descriptor\n");
+        bluetoothGattServer.sendResponse(device, requestId, BluetoothGatt.GATT_FAILURE, 0, null);
+        Log.d(LOG, "RESPONSE SENT TO CLIENT");
+        txtDebug.append("Response sent FAIL\n");
+    }
+}
+\end{lstlisting}
+A questo punto, ogni volta che un valore dell'accelerometro o del giroscopio cambia è necessario notificare il Client GATT. Quindi è necessario invocare il seguente metodo per ciascun Client GATT registrato al servizio dell'accelerometro
+\begin{lstlisting}
+bluetoothGattServer.notifyCharacteristicChanged(device, accelerometerCharacteristic, false);
+\end{lstlisting}
+ed è necessario invocare il seguente metodo per ciascun Client GATT registrato al servizio del giroscopio:
+\begin{lstlisting}
+bluetoothGattServer.notifyCharacteristicChanged(device, gyroscopeCharacteristic, false);
+\end{lstlisting}
+\\ \\ \textbf{Server GATT completo}\\
+L'applicazione Android sopra descritta è disponibile in versione completa al seguente link:\\
+https://github.com/mattiafucili/progettoISS
+%INSERIRE LINK GIT
+\\ \\ \textbf{Test del Server GATT}\\
+Un primo test delle funzionalità del Server GATT appena creato può essere effettuato mediante l'applicazione nRF Connect per Android. \\
+Questa applicazione consente di trovare i disposivi Bluetooth LE e di leggere, scrivere ed iscriversi alle caratteristiche.
+\\ \\ \textbf{CLIENT GATT}\\
+Il Client GATT è stato invece realizzato in Java e si appoggia alla libreria tinyb.\\
+Qui di seguito viene riportato il codice:
+\lstinputlisting[language=Java]{codice/BluetoothClient.java}
+\subsubsection{Problematiche}
+Una possibile problematica della soluzione sopra illustrata è l'incompatibilità con dispositivi che non sono dotati della tecnologia Bluetooth LE. \\
+Inoltre, in fase di test dell'applicativo realizzato si sono riscontrati alcuni problemi nell'utilizzo della libreria tinyb (irrisolti anche nella documentazione ufficiale).\\
+Pertanto, si è deciso di realizzare una soluzione basata sul protocollo RF Comm (adatto per Bluetooth di vecchia generazione, ma compatibile anche per Bluetooth LE).
+\subsubsection{Protocollo RF Comm}
+RF Comm è un protocollo di trasmissione di informazioni e comandi da un dispositivo ad un altro. Le informazioni vengono trasferite un bit alla volta. \\
+Qui di seguito viene riportato uno schema del protocollo:
+\begin{center}
+\includegraphics[scale = 0.4]{img/RFComm.jpg}
+\end{center}
+Si supponga di sostituire il mouse ed il computer con un dispositivo Android ed un Raspberry Pi.
+\subsubsection{Soluzione per Raspberry Pi}
+Per prima cosa è necessario installare su Raspberry la libreria pybluez. In questo modo sarà possibile utilizzare su un dispositivo, con installato il sistema operativo linux, le funzionalità del Bluetooth. \\
+Il comando per installare bluez è il seguente:
+\begin{lstlisting}
+sudo apt-get install bluez python-bluez
+\end{lstlisting}
+A questo punto è necessario disabilitare il supporto Bluetooth pnat, altrimenti si possono riscontrare dei problemi a discapito della stabilità dell'applicazione. A tal scopo è necessario aprire il file /etc/bluetooth/main.conf ed aggiungere il seguente comando:
+\begin{lstlisting}
+DisablePlugins = pnat
+\end{lstlisting}
+E' inoltre necessario modificare il file di /etc/systemd/system/dbus-org.bluez.service, aggiungendo -C nel parametro 'bluetoothd, riavviare il sistema (comando reboot) ed eseguire il seguente comando:
+\begin{lstlisting}
+sudo sdptool add SP
+\end{lstlisting}
+Infine, eseguire il seguente semplice script Python
+\begin{lstlisting}
+from bluetooth import *
+
+server_sock=BluetoothSocket( RFCOMM )
+server_sock.bind(("",PORT_ANY))
+server_sock.listen(1)
+
+port = server_sock.getsockname()[1]
+
+uuid = "94f39d29-7d6d-437d-973b-fba39e49d4ee"
+
+advertise_service( server_sock, "Server",
+                   service_id = uuid,
+                   service_classes = [ uuid, SERIAL_PORT_CLASS ],
+                   profiles = [ SERIAL_PORT_PROFILE ], 
+#                   protocols = [ OBEX_UUID ] 
+                    )
+while True:          
+	print "Waiting for connection on RFCOMM channel %d" % port
+
+	client_sock, client_info = server_sock.accept()
+	print "Accepted connection from ", client_info
+
+	try:
+	        data = client_sock.recv(1024)
+        	if len(data) == 0: break
+	        print "received [%s]" % data
+
+	except IOError:
+		pass
+
+	except KeyboardInterrupt:
+
+		print "disconnected"
+
+		client_sock.close()
+		server_sock.close()
+		print "all done"
+
+		break
+\end{lstlisting}
+mediante il comando:
+\begin{lstlisting}
+sudo python rfcomm-server.py
+\end{lstlisting}
+Il programma Python rimane in attesa di connessioni Bluetooth e quando una connessione avviene attende l'arrivo di informazioni (che nel caso specifico sono i valori dei sensori accelerometro e giroscopio del Bluetooth) e le stampa a video.
+\subsubsection{Soluzione Android}
+A questo punto è necessario creare un'applicazione Android che ad ogni variazione di valore dei dispositivi accelerometro e giroscopio crei una connessione Bluetooth con il Raspberry ed invii i nuovi valori. \\
+\lstinputlisting[language=Java]{codice/BluetoothRFCOMM.java}
+Qui di seguito viene riportato il corrispondente manifest:
+\lstinputlisting[language=XML]{codice/BluetoothRFCOMMMan.xml}
+\subsection{Problematiche della soluzione sopra illustrata}
+Durante la fase di test della soluzione sopra illustrata sono state riscontrate le seguenti problematiche:
+\begin{itemize}
+    \item i sensori di valore cambiano molto rapidamente valore, pertanto sarebbe oppurtuno inviare solo alcuni dei nuovi valori e scartarne alcuni;
+    \item la soluzione illustrata funziona solo se Raspberry Pi e dispositivo Android sono paired.
+\end{itemize}
+\subsection{Esecuzione via SSH}
+Per testare le funzionalità indicate attraverso SSH è necessario eseguire i seguenti comandi:
+\begin{lstlisting}
+sudo rfkill unblock bluetooth
+sudo hciconfig hci0 up
+sudo python rfcomm-server.py 
+\end{lstlisting}
+\newpage
+\section{RxJava}
+RxJava è un’implementazione specifica del reactive programming in Java e Android, lavora con stream per realizzare programmi asincroni ed event-based. Si basa sul concetto di funzionale per evitare di gestire tutte le callback necessarie in caso di programmazione imperativa-reattiva ed asincrona. Questo non vuol dire che sia sbagliato come approccio; infatti, in casi in cui si ha solo una fonte di informazioni o più fonti non correlate tra loro è la soluzione migliore, ma in casi in cui si hanno più stream che devono essere analizzati insieme, devono essere gestiti fallimenti di uno o più stream e devono essere ottimizzate le risorse, allora il reactive-functional programming è la scelta migliore.
+Il centro di tutto RxJava è il tipo Observable che rappresenta la fonte di informazioni, o comunemente detta stream. Lavora in modo push, lazy, sincrono o asincrono e può rappresentare 0, 1 o infiniti valori/eventi.
+\subsection{Push}
+Ogni Observable è collegato ad un Observer, il quale si può sottoscrivere attraverso il metodo:
+\begin{lstlisting}
+interface Observable<T> {
+	Subscription subscribe(Observer s);
+}
+\end{lstlisting} 
+in questo modo le informazioni vengono passate all’Observer tramite eventi nei rispettivi metodi della classe Observer:
+\begin{lstlisting}
+interface Observer<T> {
+	void onNext(T t);
+	void onError(Throwable t);
+	void onCompleted();
+}
+\end{lstlisting}
+Il metodo onNext() viene chiamato quando ci sono delle informazioni nello stream, mentre onError() e onCompleted() sono eventi terminali, rispettivamente chiamati quando c’è un errore o quando non arriveranno più informazioni dalla fonte; ovviamente, vengono innescati una sola volta.
+È importante togliersi dalla sottoscrizione quando non è più necessario, così da evitare di sprecare memoria, soprattutto in sistemi mobili (Android). È possibile farlo tramite il metodo unsubscribe().
+\subsection{Asincrono/Sincrono}
+RxJava crea una pipeline asincrona tramite Observable, che sfrutta operazioni elementari sincrone come ad esempio map(). Le operazioni vengono fatte in maniera sincrona perché se fossero eseguite in maniera asincrona (concorrente) ogni thread sarebbe schedulato in maniera diversa e quindi si potrebbero ottenere dei risultati non ordinati. Questo però non vieta l’utilizzo in maniera asincrona delle operazioni, di seguito si vedrà un operatore che lo permette.
+\subsection{Lazy}
+Si definisce lazy perché, finché non viene sottoscritto un Observer, un Observable non fa nulla. Ciò significa:
+\begin{itemize}
+    \item che è possibile definire uno stream e le operazioni da farci senza che venga eseguito fino alla subscribe() di un Observer;
+    \item un’istanza di Observable può essere invocata più di una volta.
+\end{itemize}
+\subsection{Overview degli operatori principali}
+Questa è una lista di alcuni operatori che possono essere usati negli stream:
+\begin{itemize}
+\item filter(): utilizzato per il filtraggio dell’input, ad esempio per decidere se un determinato evento deve essere propagato o meno;
+\item map(): restituisce in output l’input modificato in base ad un opportuna funzione come parametro;
+\item flatMap(): operatore che ha la stessa funzione di map(), ma utile nel caso in cui Observable emette una serie di altri Observable. L’ordine degli eventi restituiti da flatMap() rimane quello temporale;
+\item concatMap(): ha la stessa funzione di flatMap() con l’unica differenza che gli eventi vengono ordinati in base alla loro successione, quindi se ci sono più Observable che devono essere eseguiti si va in ordine e finché quello in esecuzione non finisce non parte quello successivo;
+\item merge(): usato per combinare diversi stream in uno unico, non appena uno stream ha un risultato merge() lo restituisce, stessa cosa vale per gli errori ed in questo caso lo stream finisce. Può controllare fino a 9 stream;
+\item mergeWith(): stessa funzione di merge() ma è usato quando si hanno solo 2 stream;
+\item mergeDelayError(): ha la stessa funzione di merge() ma aspetta che tutti gli stream finiscano di inviare dati per poi sollevare l’eccezione;
+\item zip(): usato per combinare i risultati di più stream in un unico stream. Restituisce il risultato solo quando tutti gli stream che sta monitorando ne forniscono uno. Può controllare fino a 9 stream alla volta;
+\item zipWith(): stessa funzione di zip() ma è usato quando si hanno solo 2 stream;
+\item combineLatest(): ha una funzione simile a zip(), però ogni volta che uno stream produce qualcosa esso viene combinato con il valore degli altri stream e viene reso disponibile. Se uno stream è più veloce di altri quando viene restituito il risultato finale vengono usati i valori già conosciuti degli stream più lenti. Usato con 2 soli stream;
+\item withLatestFrom(): stessa funzione di combineLatest() ma in questo caso vengono pubblicati i risultati solo quando il primo stream ne fornisce uno, indipendentemente dal fatto che il secondo sia più veloce o meno;
+ \item amb(): utilizzata per controllare più stream contemporaneamente, non appena uno stream emette informazioni amb() ritorna i valori di solo quello stream facendo unsubscribe() per tutti gli altri.
+\end{itemize}
+\subsection{Android}
+Nei sistemi Android, RxJava è utile soprattutto per due motivi: 
+\begin{itemize}
+    \item l’interfaccia grafica viene gestita interamente ad eventi scatenati dalle varie azioni possibili, come ad esempio la pressione di un bottone. In questo caso RxJava ci viene incontro per quanto riguarda la gestione delle callback;
+    \item come in Java, anche in Android l’interfaccia grafica è affidata ad un unico thread e non può eseguire operazioni bloccanti se no si bloccherebbe, quindi è necessario generare più thread per interagire con essa. Qui RxJava mette a disposizione due metodi subscribeOn() e observeOn(). Il primo permette di sottoscriversi ad uno stream in maniera asincrona, infatti viene creato un thread che gestisce le operazioni da fare evitando quindi di essere bloccante per future subscribe, ma soprattutto per evitare di bloccare l’intera GUI. Il secondo permette di specificare su quale thread viene invocato il metodo onNext() e quindi inserendoci il thread principale della GUI essa viene aggiornata senza blocchi durante la computazione della richiesta.
+\end{itemize} 
+Nel file di gradle occorre aggiungere questa dipendenza per poter usare RxJava:
+\begin{lstlisting}
+compile 'io.reactivex:rxandroid:1.1.0'
+\end{lstlisting}
+\subsection{Modifiche al bluetooth con RxJava}
+E' possibile utilizzare RxJava nell'applicazione che usa Bluetooth RFCOMM.\\
+Per prima cosa occorre salvare i valori ottenuti in ogni metodo onSensorChanged() in delle variabili private della classe e poi aggiungere un getter in ciascuna classe per poter accederci. Questo getter dovrà restituire un Observable<T>, con T tipo di ritorno che si desidera, che ovviamente racchiude tutti i valori in un unico valore. A questo punto occorre creare un unico stream di dati che deriva dall'unione dei due stream ottenibili dalle classi AccelerometerEventsListener e GyroscopeEventsListener, attraverso ad esempio il metodo zipWith() che, per ricordare, restituisce il risultato solo quando tutti gli stream che monitora ne restituiscono uno. Questo stream infine verrà iniettato nell'OutputStream della socket come mostrato in questo link:\\
+https://stackoverflow.com/questions/33321272/rxjava-feed-one-stream-observable-as-the-input-of-another-stream \\
+\newpage
+\section{Internet of Things (IoT)}
+\subsection{Definizione di Internet of Things}
+Internet of Things è il termine che indica un sistema di oggetti fisici che possono essere scoperti, controllati, monitorati o intercettati con dispositivi elettronici che comunicano attraverso interfacce di rete e che possono essere connessi con internet.
+Tutti gli oggetti possono quindi percpire informazioni attraverso sensori ed analizzarle, memorizzarle o scambiare informazioni.
+Per \textit{things} si intente un oggetto fisico che è dotato di uno o più componenti:
+\begin{itemize}
+\item sensori (temperatura, luce, movimento, ...)
+\item attuatori (displays, motori, ...)
+\item computazione (esegue programmi e calcoli)
+\item interfacce per la comunicazione (wireless o wired)
+\end{itemize}
+\begin{center}
+\includegraphics[scale = 0.4]{img/Internet.png}\\
+\end{center}
+Per \textit{internet} si intente che gli oggetti (things) possono essere acceduti e processati da altre applicazioni attraverso l'esistente infrastruttura internet. Questo non significa che gli oggetti devono essere direttamente connessi ad internet; la rete di comunicazione usata potrebbe essere basata su onde radio (Bluetooth, ....) o Wi-Fi.
+\subsection{Internet of Things allo stato attuale}
+Al giorno d'oggi, l'Internet of Things è composto da una crescente collezione di isolate Intranet of Things che possono essere connesse l'una con l'altra. \\
+Affinché si possa realizzare un vero Internet of Things servirebbe un protocollo di livello applicativo universale che i dispositivi e le applicazioni possano usare per comunicare fra di loro. 
+\subsection{Definizione di Web of Things}
+Si definisce Web of Things l'utilizzo dei protocollo web, standard, per rendere accessibili ai consumatori le informazioni ed i servizi offerti dai Things. \\
+Il problema nella realizzazione del Web of Things sta nel fatto che non è così immediato trovare un unico sistema o un'unica applicazione per dispositivi creati da produttori differenti.
+\begin{center}
+\includegraphics[scale = 0.4]{img/IOTvsWOB.png}\\
+\end{center}
+L'obiettivo del Web of Things è quello di astrarre la complessità e la varietà dei protocolli di basso livello attraverso il modello del web. \\
+Il Web of Things semplificherebbe l'interfrazione fra i dispositivi e le applicazioni che interagiscono con essi. In altre parole, nascondendo la complessità e le differenze fra i vari protocolli di trasporto usati in IoT, il Web of Things consentirebbe agli sviluppatori di concetrarsi sulla logica delle applicazioni, senza preoccuparsi di come i protocolli ed i singoli device lavorano. \\
+Nel Web of Things i dispositivi ed i loro servizi sono intragrati nel web, in quanto usano gli stessi standard e le stesse tecniche dei tradizionali siti web. Questo significa che le applicazioni possono interagire con i dispositivi esattamente come interagiscono con gli altri web service che usano le API del web (in particolare le architetture RESTful). \\
+In altre parole, con il Web of Things sarebbe possibile interagire con i dispositivi esattamente come si interagisce con le altre resorse nel web, cioè usando gli standard web: i servizi esposti dagli oggetti fisici possono essere acceduti mediante semplici HTTP requests.
+\subsection{REST}
+REST è l'architettura per lo sviluppo di applicazioni distribuite ed è la base su cui è costruito il web odierno. \\
+REST fornisce una serie di vincoli architetturali che garantiscono la scalabilità delle interazioni fra componenti, la generalità delle interfacce, l'aggiornamento indipendente dei componenti e componenti intermedi che riducono la latenza fra le interazioni e migliorano la sicurezza. \\ Un sistema che seguie i vincoli REST è detto RESTful. \\ 
+Qui di seguito vengono riportati i vincoli previsti da REST:
+\begin{itemize}
+    \item l'interazione fra i componenti deve essere basata su un pattern request-response. I clienti non devono conoscere l'implementazione del server, ma solo come inviare richieste per ottenere le informazioni che desiderano. Allo stesso tempo il server non ha bisogno di conoscere lo stato del cliente o di sapere come esso utilizzarà i dati richiesti;
+    \item tutti i dispositivi devono utilizzare interfacce uniformi, non ambigue, semplici e standard per la comunicazione;
+    \item lo stato del cliente è mantenuto solo dal cliente e non dal server. Ogni richiesta al server contiene lo stato del cliente;
+    \item le operazioni di caching sono l'elemento fondamentale per le performance e l'usabilità del server;
+    \item per migliorare la scalabilità ed i tempi di risposta si utilizzano server intermedi.
+\end{itemize}
+Questi vincoli sono necessari affinchè il web possa funzionare. Senza di essi il web non sarebbe aperto, scalabile, flessibile ed efficiente.\\
+Tutti i principi di REST dovrebbero essere applicati al Web of Things. Quindi i Things dovrebbero seguire le stessere regole che seguono gli altri elementi del web. L'obiettivo del Web of Things è quindi quello di arrivare ad accedere gli oggetti attravreso le stesse interfacce uniformi per il resto del web. \\
+I principi su cui si basano le interfacce uniformi del web sono riportati di seguito.
+\subsubsection{Principio 1}
+Tutti i componenti del sistema sono chiamati risorse e sono identificati univocamente attraverso un identificativo esplicito: URL. Tutti gli URL del web devono rispettare la seguente sintassi: \\
+\textit{<scheme> ":" <authority><path> [ "?" query ] [ "#" fragment ]}. \\ Tutti gli elementi del Web of Things devono avere un URL root che corrisponde al loro indirizzo di rete. Inoltre, tutte le risorse del web sono spesso organizzate gerarchicamente attraverso il path. Per esempio:
+\\
+\begin{center}
+\includegraphics[scale = 0.4]{img/Gerarchia1.png}\\
+\includegraphics[scale = 0.6]{img/Gerarchia2.png}
+\end{center}
+\subsubsection{Principio 2}
+Tutte le informazioni dovrebbero essere codificate con il medesimo standard per poter essere comprese. Il tipo MIME è stato introdotto come standard per descrivere vari formati di dati trasmessi attraverso internet come immagini, video o audio. \\ HTTP definisce un semplice meccanismo (content negotiation) che consente ai clienti di richiedere il formato dei dati preferito per le risposte dal server. \\ Il formato consigliato per i Things è JSON; in alternativa MessagePack.
+\subsubsection{Principio 3}
+HTTP definisce un set prefissato di operazioni che ogni risorsa può supportare. Le principali sono: 
+\begin{itemize}
+    \item GET: per leggere una risorsa
+    \item POST: per creare una risorsa
+    \item PUT: per aggiornare una risorsa esistente
+    \item DELETE: per cancellare una risorsa esistente
+    \item HEAD
+\end{itemize}
+I risultati di ciascuna operazioni sono codici che hanno uno specifico significato:
+\begin{itemize}
+    \item 20x successo
+    \item 40x errori 
+    \item 50x errori 
+\end{itemize} 
+\subsubsection{Principio 4}\
+Quest'ultimo principio si basa su due concetti:
+\begin{itemize}
+    \item hypermedia: l'uso dei link come connessioni fra le idee correlate fra di loro;
+    \item application state: lo stato del dispositivo o dell'applicazione dovrebbe essere una risorsa RESTful con il proprio URL.
+\end{itemize}
+I due concetti insieme formano l'acronico HATEOAS (Hypermedia as the Engine of Application State).
+\subsection{I limiti di REST ed il loro superamento}
+Il modello request-response è insufficiente per la maggior parte dei casi. Infatti, gli eventi dovrebbero essere comunicati al client quando si verificano, senza che il client sia sempre in ascolto di possibili cambiamenti.
+\begin{center}
+\includegraphics[scale = 0.6]{img/polling.png}
+\end{center}
+\subsubsection{Publish/Subscribe}
+Per superare i limiti del modello request-response si adotta un modello publish/subsribe nel quale i vari clienti si sottoscrivono ai servizi di un determinato server presso un broker, il quale provvederà ad inviare le variazioni del server quando queste si verificano. \\
+\begin{center}
+\includegraphics[scale = 0.6]{img/pubsub.png}
+\end{center}
+Il modello publish/subscribe può essere implementato in tre diversi modi:
+\begin{itemize}
+\item webhooks - HTTP callbacks: è il modo più semplice per implementare un sistema publish/subscribe rispettando il modello REST. Si considera ogni entità sia come client che server; in questo modo sia i Things che le web applications possono comportarsi sia come client (inviando una request ad altri servers) sia come server (rispondendo alle richieste). L'unica problematica è che sia il publisher che il subscriber devono essere server e devono entrambi avere un URL pubblico accessibile o un indirizzo IP;
+\begin{center}
+\includegraphics[scale = 0.6]{img/m1.png}
+\end{center}
+\item comet: consente di inviare informazioni dal server al client senza che il client ne abbia fatto una specifica richiesta. Questa tecnica prende il nome di long polling; un client invia un requesta al server, ma il server risponde solo quando un evento è ricevuto dal sensore. Non appena il client riceve la risposta, invia subito una nuova request e così via;
+\begin{center}
+\includegraphics[scale = 0.6]{img/comet.png}
+\end{center}
+\item WebSockets: in questo modo si crea una connessione permanente fra client e server che entrambi possono sfruttare per inviare messaggi. Una connessione WebSocket è creata attraverso un protocollo di handshake al termine del quale client e server possono inziare a scambiarsi informazioni. L'aspetto più importante delle WebSocket è che esse si basano sugli standard di internet.
+\end{itemize}
+\subsection{Node.js per il Web of Things}
+Node.js è un ambiente per scrivere applicazioni server-side attraverso JavaScript. \\
+JavaScript è un linguaggio di programmazione dinamica che consente di processare dati in maniera asincrona eseguendo script client-side attraverso il web browser. \\ Esso rappresenta lo standard de facto per la scrittura di applicazioni dinamiche client-side. \\
+Node.js unito a Javascript consente di costruire i servers che offrono i servizi dei Things al web. Infatti, esso fornisce un'architettura event-driven e delle API non bloccanti. In questo modo è possibile costruire applicazioni scalabili, real-time e con performance molto elevate. \\
+Con Node.js è possibile creare un server vero e proprio. 
+\subsubsection{Node.js event loop}
+Costruire applicazioni web server-side richiede l'abilità di gestire un ampio numero di connesioni contemporanee. Se le connessioni non potessero essere gestite contemporaneamente, ogni nuovo cliente dovrebbe attendere fino a che il cliente arrivato prima non termina la sua richiesta al server. \\
+Per gestire più connessioni contemporaneamente ci sono due differenti pattern:
+\begin{itemize}
+    \item multi-threaded web servers
+    \item single-threaded non-bloking web servers
+\end{itemize}
+\subsubsection{Multi-threaded web servers}
+In questo caso viene creato un nuovo thread per ogni richiesta effettuata da un cliente.
+\begin{center}
+\includegraphics[scale = 0.6]{img/Multithreaded.png}
+\end{center}
+Questa modalità funziona bene nel mondo PHP o Java perchè, mentre un cliente attente di essere servito, il server sottostante gestisce il cliente successivo.
+\subsubsection{Single-threaded non-blocking web servers}
+In questa modalità ci si pone l'obiettivo di gestire il massimo numero di clienti minimizzando l'occupazione di memoria. Questo pattern è event-driven e si basa sull'idea di avere un singolo thread con un event-loop non bloccante (I/O asincrono).\\
+Il server Node accetta un cliente e lo mette in attesa fino a quando l'opreazione richiesta di I/O non termina; nello stesso tempo gestisce le altre richieste degli altri clienti. \\
+\begin{center}
+\includegraphics[scale = 0.6]{img/Singlethread.png}
+\end{center}
+Quando un'operazione di I/O viene compiuta, viene passata una funzione come parametro. L'event-loop mette l'operazione richiesta in attesa fino a quando non si ha una risposta e nel frattempo esegue altre operazioni. Quando il risultato dell'operazione è disponibile, l'event-loop esegue la funzione passata come parametro (funzione di callback). \\
+Questo meccanismo funziona solo se tutte le operazioni eseguibili dai clienti sono asincrone.\\
+Node.js è one thread.
+\subsubsection{Chiamate asincrone}
+Per realizzare una chiamata asincrona esistono due metodi:
+\begin{itemize}
+    \item callbacks anonime: è una funzione senza nome passata come parametro all'operazione di I/O asincrona ed invocata quando quest'ultima termina. Generalmente sono invocate con due parametri: err (contiene gli eventuali errori) e resp (contiene il risultato dell'operazione di I/O);
+    \item event listeners.
+\end{itemize}
+\subsection{Internet Of Things applicato all'attività progettuale}
+Ai fini dell'attività progettuale, si è scelto di realizzare un'applicazione dimostrativa che con le seguenti caratteristiche:
+\begin{itemize}
+    \item protocollo utilizzato webhooks
+    \item funzionalità server realizzate mediante node.js
+    \item RESTful
+\end{itemize}
+Si riporta qui di seguito il codice del server:
+\lstinputlisting[language=JavaScript]{codice/server2.js}
+Segue il codice del client:
+\lstinputlisting[language=JavaScript]{codice/client2.js}
+Per l'esecuzione dei seguenti file occorre, dopo aver installato node, eseguire il seguente comando da terminale:
+\begin{lstlisting}
+node nomeDelFile.js
+\end{lstlisting}
+Come precedentemente indicato, la caratteristica peculiare del protocollo webhooks è che sia il client che il server abbiamo al loro interno una parte server ed entrambi devono essere associati ad un indirizzo IP o ad un URI.\\
+La comunicazione avviene attraverso operazioni di tipo POST. 
+\newpage
+\section{Riferimenti}
+http://carloantenucci.github.io/AndroidSensorSupport/\\\\
+%ANDROID ACCESSORY
+https://developer.android.com/guide/topics/connectivity/usb/accessory.html\\\\
+https://pythonhosted.org/pyserial/\\\\
+https://www.bluetooth.com/specifications/gatt/generic-attributes-overview\\\\
+%GUIDA bluetooth normale
+http://blog.davidvassallo.me/2014/05/11/android-linux-raspberry-pi-bluetooth-communication/\\\\
+%GUIDA BLE
+http://nilhcem.com/android-things/bluetooth-low-energy
+\\\\
+Reactive Programming with RxJava - Tomasz Nurkiewicz & Ben Christenses
+\\\\
+Building the Web of Things - Dominique D. Guinard, Vlad M. Trifa
+\end{document}
